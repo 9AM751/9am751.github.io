@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>在WSL2中使用Docker快速搭建Windows开发环境 - Pages</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="Pages"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Pages"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="每次电脑重置之后最烦的就是搭建环境，什么mysql，redis，nacos等等，（当然现在我的nacos集群已经迁移的远程服务器上了qwq），要去各种官网下载安装包或者二进制文件，安装的时候勾选一个不慎就出问题，那是相当的麻烦，大三下学期结束又一次重置之后，果断选择在WSL2中使用docker，把上述环境全部作为容器run起来"><meta property="og:type" content="blog"><meta property="og:title" content="在WSL2中使用Docker快速搭建Windows开发环境"><meta property="og:url" content="http://example.com/2022/06/16/%E5%9C%A8WSL%E4%B8%AD%E4%BD%BF%E7%94%A8Docker%E5%BF%AB%E9%80%9F%E6%90%AD%E5%BB%BAWindows%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/"><meta property="og:site_name" content="Pages"><meta property="og:description" content="每次电脑重置之后最烦的就是搭建环境，什么mysql，redis，nacos等等，（当然现在我的nacos集群已经迁移的远程服务器上了qwq），要去各种官网下载安装包或者二进制文件，安装的时候勾选一个不慎就出问题，那是相当的麻烦，大三下学期结束又一次重置之后，果断选择在WSL2中使用docker，把上述环境全部作为容器run起来"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616213046.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616214001.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616215555.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616215614.png"><meta property="article:published_time" content="2022-06-16T13:17:04.000Z"><meta property="article:modified_time" content="2022-06-16T13:58:05.070Z"><meta property="article:author" content="Rylan"><meta property="article:tag" content="开发技巧"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616213046.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"http://example.com/2022/06/16/%E5%9C%A8WSL%E4%B8%AD%E4%BD%BF%E7%94%A8Docker%E5%BF%AB%E9%80%9F%E6%90%AD%E5%BB%BAWindows%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/"},"headline":"在WSL2中使用Docker快速搭建Windows开发环境","image":["https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616213046.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616214001.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616215555.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616215614.png"],"datePublished":"2022-06-16T13:17:04.000Z","dateModified":"2022-06-16T13:58:05.070Z","author":{"@type":"Person","name":"Rylan"},"publisher":{"@type":"Organization","name":"Pages","logo":{"@type":"ImageObject","url":"http://example.com/img/logo.svg"}},"description":"每次电脑重置之后最烦的就是搭建环境，什么mysql，redis，nacos等等，（当然现在我的nacos集群已经迁移的远程服务器上了qwq），要去各种官网下载安装包或者二进制文件，安装的时候勾选一个不慎就出问题，那是相当的麻烦，大三下学期结束又一次重置之后，果断选择在WSL2中使用docker，把上述环境全部作为容器run起来"}</script><link rel="canonical" href="http://example.com/2022/06/16/%E5%9C%A8WSL%E4%B8%AD%E4%BD%BF%E7%94%A8Docker%E5%BF%AB%E9%80%9F%E6%90%AD%E5%BB%BAWindows%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/atom-one-light.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cookieconsent@3.1.1/build/cookieconsent.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><!--!--><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-2-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo.svg" alt="Pages" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/archives">归档</a><a class="navbar-item" href="/overview">使用说明</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-8-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2022-06-16T13:17:04.000Z" title="2022-6-16 21:17:04">2022-06-16</time>发表</span><span class="level-item"><a class="link-muted" href="/categories/%E5%BC%80%E5%8F%91%E6%8A%80%E5%B7%A7/">开发技巧</a><span> / </span><a class="link-muted" href="/categories/%E5%BC%80%E5%8F%91%E6%8A%80%E5%B7%A7/Common/">Common</a></span></div></div><h1 class="title is-3 is-size-4-mobile">在WSL2中使用Docker快速搭建Windows开发环境</h1><div class="content"><p>每次电脑重置之后最烦的就是搭建环境，什么mysql，redis，nacos等等，（当然现在我的nacos集群已经迁移的远程服务器上了qwq），要去各种官网下载安装包或者二进制文件，安装的时候勾选一个不慎就出问题，那是相当的麻烦，大三下学期结束又一次重置之后，果断选择在WSL2中使用docker，把上述环境全部作为容器run起来<span id="more"></span> 只需pull下镜像，然后运行容器即可，免去上述的问题，并且不用时可以stop容器以减少内存占用</p>
+<h2 id="大概思路"><a href="#大概思路" class="headerlink" title="大概思路"></a>大概思路</h2><p>因为我当时刚装完系统没下picgo，所以也没截图什么的，只能说下当时的流程和最后结果</p>
+<h3 id="WSL2"><a href="#WSL2" class="headerlink" title="WSL2"></a>WSL2</h3><p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616213046.png"></p>
+<p>现在微软已经把WSL2作为默认的了，我记的以前使用WSL2要去下扩展然后从WSL1切换过去，但现在很方便，按照文档指示就一条命令</p>
+<p>地址 <a target="_blank" rel="noopener" href="https://docs.microsoft.com/zh-cn/windows/wsl/install">安装 WSL | Microsoft Docs</a></p>
+<p>安装好之后去微软商店里下载Linux，wsl访问Linux目录的命令是<code>\\wsl$</code></p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616214001.png"></p>
+<h3 id="安装docker"><a href="#安装docker" class="headerlink" title="安装docker"></a>安装docker</h3><p>推荐去b站看这个，以及他这个系列的其他视频</p>
+<p><a target="_blank" rel="noopener" href="https://www.bilibili.com/video/BV1nt4y1k7Fy?share_source=copy_web">https://www.bilibili.com/video/BV1nt4y1k7Fy?share_source=copy_web</a></p>
+<p>他会手把手教你如何在wsl管理的Linux中安装docker，以及如何抛弃vim并配置vscode在windows编写，Linux编译的高效操作。</p>
+<h3 id="容器化部署"><a href="#容器化部署" class="headerlink" title="容器化部署"></a>容器化部署</h3><p>如果你对docker的概念以及常见使用方法不熟悉，可以去看这个</p>
+<p><a target="_blank" rel="noopener" href="https://yeasy.gitbook.io/docker_practice/">https://yeasy.gitbook.io/docker_practice/</a></p>
+<p>写的非常好，是一个开源的项目，一些大佬一起维护这本Gitbook</p>
+<p>知道如何拉取镜像，部署容器，挂载目录，操作容器等等这些基本操作就够，当然你也可以编写自己的docker file为下一次重置做准备 (&#x3D;W&#x3D;)</p>
+<h3 id="管理容器"><a href="#管理容器" class="headerlink" title="管理容器"></a>管理容器</h3><p>可以设置开机时docker自启，这样随着docker服务的启动，是restart&#x3D;always的容器也会跟着自己start起来。</p>
+<p><a target="_blank" rel="noopener" href="https://www.jianshu.com/p/244a9d8a2309">WSL2中安装docker 并开机启动 - 简书</a></p>
+<p>推荐使用portainer去管理容器</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616215555.png"></p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220616215614.png"></p>
+</div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/%E5%BC%80%E5%8F%91%E6%8A%80%E5%B7%A7/">开发技巧</a></div><!--!--></article></div><div class="card"><div class="card-content"><h3 class="menu-label has-text-centered">喜欢这篇文章？打赏一下作者吧</h3><div class="buttons is-centered"><a class="button donate" href="/" target="_blank" rel="noopener" data-type="buymeacoffee"><span class="icon is-small"><i class="fas fa-coffee"></i></span><span>送我杯咖啡</span></a></div></div></div><nav class="post-navigation mt-4 level is-mobile"><div class="level-start"><a class="article-nav-prev level level-item link-muted" href="/2022/06/16/hello-world/"><i class="level-item fas fa-chevron-left"></i><span class="level-item">Hello World</span></a></div><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2022/06/16/%E5%90%8E%E7%AB%AF%E6%A0%87%E5%87%86%E8%BF%94%E5%9B%9E%E6%A0%BC%E5%BC%8F/"><span class="level-item">后端标准返回格式</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><!--!--></div><!--!--><div class="column column-right is-4-tablet is-4-desktop is-4-widescreen  order-3 is-sticky"><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar" src="https://raw.githubusercontent.com/9AM751/picgo/main/img/img-1649202808110b89b9a095a058df3575257f897598dc3.jpg" alt="Rylan"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">Rylan</p><p class="is-size-6 is-block">满满的正能量，早晨起来，面对太阳...</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">3</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">2</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">1</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://juejin.cn/user/3624426912878622" target="_blank" rel="noopener">关注我</a></div><div class="level is-mobile is-multiline"><a class="level-item button is-transparent is-marginless" target="_blank" rel="noopener" title="RSS" href="/"><i class="fas fa-rss"></i></a></div></div></div><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#大概思路"><span class="level-left"><span class="level-item">1</span><span class="level-item">大概思路</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#WSL2"><span class="level-left"><span class="level-item">1.1</span><span class="level-item">WSL2</span></span></a></li><li><a class="level is-mobile" href="#安装docker"><span class="level-left"><span class="level-item">1.2</span><span class="level-item">安装docker</span></span></a></li><li><a class="level is-mobile" href="#容器化部署"><span class="level-left"><span class="level-item">1.3</span><span class="level-item">容器化部署</span></span></a></li><li><a class="level is-mobile" href="#管理容器"><span class="level-left"><span class="level-item">1.4</span><span class="level-item">管理容器</span></span></a></li></ul></li></ul></div></div><script src="/js/toc.js" defer></script></div><div class="card widget" data-type="categories"><div class="card-content"><div class="menu"><h3 class="menu-label">分类</h3><ul class="menu-list"><li><a class="level is-mobile" href="/categories/%E5%BC%80%E5%8F%91%E6%8A%80%E5%B7%A7/"><span class="level-start"><span class="level-item">开发技巧</span></span><span class="level-end"><span class="level-item tag">2</span></span></a><ul><li><a class="level is-mobile" href="/categories/%E5%BC%80%E5%8F%91%E6%8A%80%E5%B7%A7/Common/"><span class="level-start"><span class="level-item">Common</span></span><span class="level-end"><span class="level-item tag">2</span></span></a></li></ul></li></ul></div></div></div><div class="card widget" data-type="tags"><div class="card-content"><div class="menu"><h3 class="menu-label">标签</h3><div class="field is-grouped is-grouped-multiline"><div class="control"><a class="tags has-addons" href="/tags/%E5%BC%80%E5%8F%91%E6%8A%80%E5%B7%A7/"><span class="tag">开发技巧</span><span class="tag">2</span></a></div></div></div></div></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo.svg" alt="Pages" height="28"></a><p class="is-size-7"><span>&copy; 2022 Rylan</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/cookieconsent@3.1.1/build/cookieconsent.min.js" defer></script><script>window.addEventListener("load", () => {
+      window.cookieconsent.initialise({
+        type: "info",
+        theme: "edgeless",
+        static: false,
+        position: "bottom-left",
+        content: {
+          message: "此网站使用Cookie来改善您的体验。",
+          dismiss: "知道了！",
+          allow: "允许使用Cookie",
+          deny: "拒绝",
+          link: "了解更多",
+          policy: "Cookie政策",
+          href: "https://www.cookiesandyou.com/",
+        },
+        palette: {
+          popup: {
+            background: "#edeff5",
+            text: "#838391"
+          },
+          button: {
+            background: "#4b81e8"
+          },
+        },
+      });
+    });</script><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>
