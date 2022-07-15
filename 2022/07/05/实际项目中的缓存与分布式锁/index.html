@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>实际项目中的缓存与锁 - Pages</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="Pages"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Pages"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="结合当项目的场景思考与分析，右侧的目录是最好的思路和大纲 这个项目的场景使用Spring Cache配合本地锁是完全够用的，需要放入缓存的数据也就千条即使走db查询性能也可以忽略不计，所以本着学习的目的来探讨分布式场景下的问题和方案。 下面的知识点，代码，方案实现并不完全来源于视频，比如精细了锁的粒度用读写锁，缓存的事务回滚如何避免出现bug，分析看门狗机制等等都是视频没有提到的。   一. 适合"><meta property="og:type" content="blog"><meta property="og:title" content="实际项目中的缓存与锁"><meta property="og:url" content="http://example.com/2022/07/05/%E5%AE%9E%E9%99%85%E9%A1%B9%E7%9B%AE%E4%B8%AD%E7%9A%84%E7%BC%93%E5%AD%98%E4%B8%8E%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"><meta property="og:site_name" content="Pages"><meta property="og:description" content="结合当项目的场景思考与分析，右侧的目录是最好的思路和大纲 这个项目的场景使用Spring Cache配合本地锁是完全够用的，需要放入缓存的数据也就千条即使走db查询性能也可以忽略不计，所以本着学习的目的来探讨分布式场景下的问题和方案。 下面的知识点，代码，方案实现并不完全来源于视频，比如精细了锁的粒度用读写锁，缓存的事务回滚如何避免出现bug，分析看门狗机制等等都是视频没有提到的。   一. 适合"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705151454.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705153731.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220708104452.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705160613.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706154504.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706155207.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706163101.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706163844.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706175311.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224007.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706222310.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224239.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224703.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706175200.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220707092844.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709125734.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220708105445.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709210901.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709112720.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709203739.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709204034.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709210208.png"><meta property="article:published_time" content="2022-07-05T08:21:57.691Z"><meta property="article:modified_time" content="2022-07-15T11:23:22.126Z"><meta property="article:author" content="Rylan"><meta property="article:tag" content="微服务"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705151454.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"http://example.com/2022/07/05/%E5%AE%9E%E9%99%85%E9%A1%B9%E7%9B%AE%E4%B8%AD%E7%9A%84%E7%BC%93%E5%AD%98%E4%B8%8E%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"},"headline":"实际项目中的缓存与锁","image":["https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705151454.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705153731.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220708104452.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705160613.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706154504.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706155207.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706163101.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706163844.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706175311.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224007.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706222310.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224239.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224703.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706175200.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220707092844.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709125734.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220708105445.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709210901.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709112720.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709203739.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709204034.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709210208.png"],"datePublished":"2022-07-05T08:21:57.691Z","dateModified":"2022-07-15T11:23:22.126Z","author":{"@type":"Person","name":"Rylan"},"publisher":{"@type":"Organization","name":"Pages","logo":{"@type":"ImageObject","url":"http://example.com/img/logo.svg"}},"description":"结合当项目的场景思考与分析，右侧的目录是最好的思路和大纲 这个项目的场景使用Spring Cache配合本地锁是完全够用的，需要放入缓存的数据也就千条即使走db查询性能也可以忽略不计，所以本着学习的目的来探讨分布式场景下的问题和方案。 下面的知识点，代码，方案实现并不完全来源于视频，比如精细了锁的粒度用读写锁，缓存的事务回滚如何避免出现bug，分析看门狗机制等等都是视频没有提到的。   一. 适合"}</script><link rel="canonical" href="http://example.com/2022/07/05/%E5%AE%9E%E9%99%85%E9%A1%B9%E7%9B%AE%E4%B8%AD%E7%9A%84%E7%BC%93%E5%AD%98%E4%B8%8E%E5%88%86%E5%B8%83%E5%BC%8F%E9%94%81/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/atom-one-light.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cookieconsent@3.1.1/build/cookieconsent.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><!--!--><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-2-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo.svg" alt="Pages" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/archives">归档</a><a class="navbar-item" href="/overview">使用说明</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-8-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2022-07-05T08:21:57.691Z" title="2022-7-5 16:21:57">2022-07-05</time>发表</span><span class="level-item"><a class="link-muted" href="/categories/%E5%BE%AE%E6%9C%8D%E5%8A%A1/">微服务</a></span></div></div><h1 class="title is-3 is-size-4-mobile">实际项目中的缓存与锁</h1><div class="content"><p>结合当项目的场景思考与分析，右侧的目录是最好的思路和大纲</p>
+<p>这个项目的场景使用Spring Cache配合本地锁是完全够用的，需要放入缓存的数据也就千条即使走db查询性能也可以忽略不计，所以本着学习的目的来探讨分布式场景下的问题和方案。</p>
+<p>下面的知识点，代码，方案实现并不完全来源于视频，比如精细了锁的粒度用读写锁，缓存的事务回滚如何避免出现bug，分析看门狗机制等等都是视频没有提到的。</p>
+<!---more-->
+
+<h3 id="一-适合放入缓存的数据"><a href="#一-适合放入缓存的数据" class="headerlink" title="一. 适合放入缓存的数据"></a>一. 适合放入缓存的数据</h3><ol>
+<li><p>及时性，对数据短暂的一致性要求不高的</p>
+</li>
+<li><p>访问量大且更新频率不高的数据 (读多写少)</p>
+<!---more-->
+
+<p>举例：</p>
+<ol>
+<li><p>电商类应用，商品分类，商品列表等适合缓存并加一个失效时间（根据数据更新频率来定）</p>
+</li>
+<li><p>后台如果发布一个商品，买家需要5分钟才能看到新的商品一般还是可以接受的</p>
+</li>
+<li><p>物流信息</p>
+</li>
+</ol>
+<p>在该项目中商城的首页分类信息(1452条)几乎是不总修改的，但是频繁读取所以适合放入缓存中</p>
+<p>由于无法在多台服务器上搭建真正的分布式系统，所以只能创建多个实例来模拟伪分布式的情况，实际上分布式与伪分布式需要被考虑和被解决的问题是一样的。</p>
+<!---more--></li>
+</ol>
+<h3 id="二-使用缓存的流程"><a href="#二-使用缓存的流程" class="headerlink" title="二. 使用缓存的流程"></a>二. 使用缓存的流程</h3><p>以下的使用缓存的各种方案都是基于该思路流程</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705151454.png"></p>
+<h3 id="三-本地缓存的局限性"><a href="#三-本地缓存的局限性" class="headerlink" title="三. 本地缓存的局限性"></a>三. 本地缓存的局限性</h3><p>前面提到使用缓存是为了提高读取速度</p>
+<p>那么使用本地缓存可以理解为，使用一个进程里的某一块堆内存中存放的值，它的生命周期是与当前程序有关的，想想读进程里变量肯定是比每次查询数据库快吧</p>
+<p>就拿本地某个微服务的多个实例集群举例：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Map &lt;category&gt; cache = <span class="keyword">new</span> <span class="title class_">HashMap</span> &lt;category&gt;();</span><br><span class="line"><span class="keyword">if</span> (cache!=<span class="literal">null</span>)&#123;</span><br><span class="line">    <span class="keyword">return</span> cache.get(<span class="string">&quot;data&quot;</span>);</span><br><span class="line">&#125;<span class="keyword">else</span>&#123;</span><br><span class="line">    cache.put(<span class="string">&quot;data&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span> cache.get(<span class="string">&quot;data&quot;</span>);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705153731.png"></p>
+<p>如果这么编写，搭配上面的图看问题很明显，本地缓存只能被本地进程访问，不能被其他程序访问。第一个实例中如果cache更新了，你是没办法通知到其他实例的，也没办法改变其他实例的cache这个本地变量，因为这个cache是与当前本地程序的生命周期有关，重启它变量存的值就没啦，并且因为是占用JAVA进程的JVM内存空间所以无法存放大量数据。</p>
+<p>根据上面的分析总结本地缓存的弊端：</p>
+<ul>
+<li><p>无法存放大量数据</p>
+</li>
+<li><p>集群之间数据更新不可见</p>
+</li>
+<li><p>数据会随应用重启丢失</p>
+</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220708104452.png"></p>
+<h3 id="四-使用分布式缓存"><a href="#四-使用分布式缓存" class="headerlink" title="四. 使用分布式缓存"></a>四. 使用分布式缓存</h3><p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220705160613.png"></p>
+<p>这个比较好理解，数据不放在本地，而在其他服务器上大家都去那里读，修改，虽然网络传输没有直接访问本地快，但<strong>支持存储大量数据</strong>，<strong>不受重启影响</strong>，因为是共享一份数据(缓存)所以保证了<strong>数据一致性</strong>，解决了前面提到本地缓存的弊端。</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706154504.png"></p>
+<p>【note  于2022&#x2F;7&#x2F;8更新】:</p>
+<p><strong>分布式缓存是独立部署的服务进程，并且和应用程序没有部署在同一台服务器上。所以是需要通过远程网络请求来完成分布式缓存的读写操作，并且分布式缓存主要应用在应用程序集群部署的环境下，解决了本地缓存的数据不一致问题。</strong></p>
+<h3 id="五-缓存带来的问题与锁"><a href="#五-缓存带来的问题与锁" class="headerlink" title="五. 缓存带来的问题与锁"></a>五. 缓存带来的问题与锁</h3><p>缓存在面对并发时的问题。注意这里没特指是本地缓存还是分布式缓存，因为这是使用缓存本身固有的问题。</p>
+<p>分布式场景下：</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706155207.png"></p>
+<p><strong>缓存穿透</strong>：缓存里没有，查数据的行文就是缓存穿透</p>
+<p>如果来的请求是100万个，恰巧缓存中没有这个数据那怎么办？那100万次只能都走数据库查询了，那么这种针对同一个数据大量查询且有<strong>缓存穿透</strong>的行为，那就是<strong>缓存击穿</strong>了，怎么解决？返回null，使用布隆过滤器，这八股知识肯定都知道，面对多线程并发问题怎么解决也都知道，加锁呗，锁住排他让它们一个个做处理。</p>
+<p><strong>但是在实际项目中解决未必一定要像八股背的，具体事具体分析</strong></p>
+<blockquote>
+<p>解决缓存穿透</p>
+</blockquote>
+<ol>
+<li><p>返回null值：</p>
+<p>存在弊端，有多个缓存击穿的key时会存很多值为null的key容易造成内存压力，但是该项目中此场景中无需考虑有多个key的击穿情况，因为传过来的参数只有一个，且是固定的key，只考虑单key击穿即可。</p>
+</li>
+</ol>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706163101.png"></p>
+<ol start="2">
+<li><p>使用布隆&#x2F;布谷鸟过滤器，可以一定程度解决多key的击穿情况，在redis查询之前提前判断是否存在，但上面说过这个项目不用考虑。</p>
+</li>
+<li><p>本地缓存做一级缓存，分布式缓存做二级缓存，在一篇文章里看到的，目前还没时间尝试，等这里写完了再研究。</p>
+</li>
+</ol>
+<blockquote>
+<p>解决并发</p>
+</blockquote>
+<p>首先我们加锁是为了解决并发带来的什么问题？</p>
+<p>1.解决发生故障时大量占用服务器和数据库连接造成的性能问题</p>
+<p>2.多线程下数据修改读取不一致问题，那么是哪种数据不一致？通常：</p>
+<ol>
+<li>多线程下堆内存变量不具有原子性的时候修改和读取造成的 (与场景无关)</li>
+</ol>
+<p>        解决：使用原子类，锁住修改数据的代码等等</p>
+<ol start="2">
+<li><p>由于时序性，消息传递不及时带来的数据不一致问题 (对应场景)</p>
+<p>tomcat虽然在请求处理上是nio但后续的工作线程还是bio的 ，所以要把放入缓存的步骤一起锁住，否则会出现加锁后依然会缓存穿透的现象。</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706163844.png"></p>
+</li>
+</ol>
+<h3 id="六-本地锁带来的问题"><a href="#六-本地锁带来的问题" class="headerlink" title="六. 本地锁带来的问题"></a>六. 本地锁带来的问题</h3><p>我们锁住本地service对象</p>
+<img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706175311.png" title="" alt="" width="715">
+
+<p>测试下本地锁是否生效</p>
+<p>首先创建三个实例，然后保证Redis中没有catalog相关的数据</p>
+<img title="" src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224007.png" alt="" width="405">
+
+<img title="" src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706222310.png" alt="" width="405">
+
+<p>压力测试分别请求主页(一级分类)和另外的三级分类</p>
+<img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224239.png" title="" alt="" width="401">
+
+<p>查看各实例结果，发现对于并发带来的缓存击穿本地锁是生效的，都只查了一次数据库放入缓存后就走缓存查询了，但是问题来了，正常我们想要的是不论几个实例，都只查询一次数据库，那这查了四次肯定不对。（其实该项目中即使有10个实例走10次数据库查询影响也不是很大，就1000来条…）</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706224703.png">分析下：既然Redis中已经有数据了，那其他实例读不到吗？是的读不到，因为100个请求在一秒内发送负载均衡到四个实例后第一次查询缓存的操作是在四个实例中同时执行的，这就是使用本地锁带来的弊端，<strong>只锁了自己，分布式场景下使用本地锁没办法互斥其他实例进程里的线程</strong></p>
+<p>查看日志发现，四个实例查询db的时间几乎相同，差别是在毫秒级别这远远不够一次远程请求redis查缓存的时间，所以根本观察不到Redis中已经有数据了。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">22:37:28.663  INFO 4756 --- [io-8090-exec-27] c.c.p.service.impl.CategoryServiceImpl </span><br><span class="line">22:37:28.634  INFO 24116 --- [nio-8091-exec-1] c.c.p.service.impl.CategoryServiceImpl   </span><br><span class="line">22:37:28.652  INFO 21456 --- [io-8092-exec-26] c.c.p.service.impl.CategoryServiceImpl </span><br><span class="line">22:37:28.646  INFO 3644 --- [io-8093-exec-26] c.c.p.service.impl.CategoryServiceImpl</span><br></pre></td></tr></table></figure>
+
+<p>观察上面日志还会发现个有趣的现象就是nio和io(bio)，这个点已经两次提到了，因为比较感兴趣知识量又不小所以关于了解nio与bio和探讨WebFlux响应式框架的容器(Netty)等扩展知识会在另一篇文章写到</p>
+<p>下面这张图一眼就能出来的在分布式情况下使用本地锁带来的弊端，只锁住了自己对本地线程是排他的，但没有锁住其他实例的线程，那么我们想要的是无论是哪个实例，面对查询缓存这个操作就必须是排他的只允许一个线程访问。（埋个坑：其实读的时候也不一定只允许一个线程访问）</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220706175200.png"></p>
+<h3 id="七-使用分布式锁"><a href="#七-使用分布式锁" class="headerlink" title="七.使用分布式锁"></a>七.使用分布式锁</h3><p>那么加锁时机就要放在查询缓存这一过程上，结合上面的场景在这个项目中要怎么编写和使用分布式锁？</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220707092844.png"></p>
+<p>可以看到锁住的资源不再是本地的，而是大家抢占远端的资源(Redis中的某一个key)</p>
+<ol>
+<li>利用Redis中 setNX命令的特性设置一个key作为各实例的抢夺资源，再加锁从而保证了所有实例中线程的排他性</li>
+</ol>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709125734.png"></p>
+<p>但在加锁（存key设置延时）,解锁（删key）的过程中要保证原子操作否则会出现死锁，在文档中写道我们可以配合Lua脚本来删除锁。</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220708105445.png"></p>
+<ol start="2">
+<li>使用Redisson做分布式锁</li>
+</ol>
+<p>    Redisson封装了redis的操作加锁、解锁、执行lua脚本等等，原理和上面的一样，使用起来也和JUC包下工具相同。</p>
+<p>    <img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709210901.png"></p>
+<p>项目商品服务测试，发现各实例只要一次查询操作</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709112720.png"></p>
+<p>分析：</p>
+<p>当我们访问首页时频繁的读分类数据，而这个数据几乎不会修改，那么把读操作也锁了那太可惜了，所以可以试试细分锁的粒度，当缓存中没有数据时我们用写锁锁住互斥其他读、写的线程，当缓存中有数据时用读锁锁住支持并发读。</p>
+<p>这里是视频没有用到的方法我试了下QWQ，相同的线程组执行完看数据确实要优于之前的</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709203739.png"></p>
+<p>测试数据</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709204034.png"></p>
+<h3 id="八-缓存的最终数据一致性"><a href="#八-缓存的最终数据一致性" class="headerlink" title="八. 缓存的最终数据一致性"></a>八. 缓存的最终数据一致性</h3><p>上面不断强调的数据一致性都是考虑代码执行异常时的情况，当我们后台人为修改时如何保证一致性？</p>
+<p>有双写，失效两种方式，这里的场景不是频繁修改所以失效方式更合理</p>
+<p>结合Spring Cache的缓冲区特性，当更新操作触发时删除缓存中缓冲区中的数据。</p>
+<p>有个注意的点：同样是视频没有讲的，在使用@CacheEvict清除缓冲区时，如果@Transactional事务加的不合理那么会出现数据不一致问题，原因是因为AOP执行顺序的原因 <strong>是先清除缓存，然后提交事务的，而我们是希望先提交事务，然后再更新缓存</strong>，参考阿里巴巴JAVA开发手册中提到的缓存回滚。这个案例网上有感兴趣可以查查。</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/20220709210208.png"></p>
+</div><div class="article-tags is-size-7 mb-4"><span class="mr-2">#</span><a class="link-muted mr-2" rel="tag" href="/tags/%E5%BE%AE%E6%9C%8D%E5%8A%A1/">微服务</a></div><!--!--></article></div><div class="card"><div class="card-content"><h3 class="menu-label has-text-centered">喜欢这篇文章？打赏一下作者吧</h3><div class="buttons is-centered"><a class="button donate" href="/" target="_blank" rel="noopener" data-type="buymeacoffee"><span class="icon is-small"><i class="fas fa-coffee"></i></span><span>送我杯咖啡</span></a></div></div></div><nav class="post-navigation mt-4 level is-mobile"><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2022/06/16/hello-world/"><span class="level-item">Hello World</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><!--!--></div><!--!--><div class="column column-right is-4-tablet is-4-desktop is-4-widescreen  order-3"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#一-适合放入缓存的数据"><span class="level-left"><span class="level-item">1</span><span class="level-item">一. 适合放入缓存的数据</span></span></a></li><li><a class="level is-mobile" href="#二-使用缓存的流程"><span class="level-left"><span class="level-item">2</span><span class="level-item">二. 使用缓存的流程</span></span></a></li><li><a class="level is-mobile" href="#三-本地缓存的局限性"><span class="level-left"><span class="level-item">3</span><span class="level-item">三. 本地缓存的局限性</span></span></a></li><li><a class="level is-mobile" href="#四-使用分布式缓存"><span class="level-left"><span class="level-item">4</span><span class="level-item">四. 使用分布式缓存</span></span></a></li><li><a class="level is-mobile" href="#五-缓存带来的问题与锁"><span class="level-left"><span class="level-item">5</span><span class="level-item">五. 缓存带来的问题与锁</span></span></a></li><li><a class="level is-mobile" href="#六-本地锁带来的问题"><span class="level-left"><span class="level-item">6</span><span class="level-item">六. 本地锁带来的问题</span></span></a></li><li><a class="level is-mobile" href="#七-使用分布式锁"><span class="level-left"><span class="level-item">7</span><span class="level-item">七.使用分布式锁</span></span></a></li><li><a class="level is-mobile" href="#八-缓存的最终数据一致性"><span class="level-left"><span class="level-item">8</span><span class="level-item">八. 缓存的最终数据一致性</span></span></a></li></ul></div></div><script src="/js/toc.js" defer></script></div><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://raw.githubusercontent.com/9AM751/picgo/main/img/img-1649202808110b89b9a095a058df3575257f897598dc3.jpg" alt="Rylan"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">Rylan</p><p class="is-size-6 is-block">满满的正能量，早晨起来，面对太阳...</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">4</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">2</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">2</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://juejin.cn/user/3624426912878622" target="_blank" rel="noopener">关注我</a></div></div></div><div class="card widget"><div class="card-content"><div class="notification is-danger">You need to set <code>client_id</code> and <code>slot_id</code> to show this AD unit. Please set it in <code>_config.yml</code>.</div></div></div><div class="card widget" data-type="subscribe-email"><div class="card-content"><div class="menu"><h3 class="menu-label">follow.it</h3><form action="" method="post" target="_blank"><div class="field has-addons"><div class="control has-icons-left is-expanded"><input class="input" name="email" type="email" placeholder="Email"><span class="icon is-small is-left"><i class="fas fa-envelope"></i></span></div><div class="control"><input class="button" type="submit" value="订阅"></div></div></form></div></div></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo.svg" alt="Pages" height="28"></a><p class="is-size-7"><span>&copy; 2022 Rylan</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/cookieconsent@3.1.1/build/cookieconsent.min.js" defer></script><script>window.addEventListener("load", () => {
+      window.cookieconsent.initialise({
+        type: "info",
+        theme: "edgeless",
+        static: false,
+        position: "bottom-left",
+        content: {
+          message: "此网站使用Cookie来改善您的体验。",
+          dismiss: "知道了！",
+          allow: "允许使用Cookie",
+          deny: "拒绝",
+          link: "了解更多",
+          policy: "Cookie政策",
+          href: "https://www.cookiesandyou.com/",
+        },
+        palette: {
+          popup: {
+            background: "#edeff5",
+            text: "#838391"
+          },
+          button: {
+            background: "#4b81e8"
+          },
+        },
+      });
+    });</script><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>

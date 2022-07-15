@@ -11693,11 +11693,47 @@ figure.highlight.foldable div.level-left {
     padding: 1.5rem 1rem;
   }
 }
+h1::before {
+  transform: scaleX(0);
+  transform-origin: bottom right;
+}
+h1:hover::before {
+  transform: scaleX(1);
+  transform-origin: bottom left;
+}
+.hove::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  inset: 0 0 0 0;
+  background: #9df;
+  z-index: -1;
+  transition: transform 0.3s ease;
+}
+.hove {
+  position: relative;
+  font-size: 5rem;
+  top: -15px;
+}
+html {
+  block-size: 100%;
+  inline-size: 100%;
+}
 body {
   color: #4a4a4a;
   font-size: 1em;
   font-weight: 400;
   line-height: 1.8;
+  font-family: system-ui, sans-serif;
+}
+@media (orientation: landscape) {
+  body {
+    grid-auto-flow: column;
+  }
 }
 body {
   counter-reset: card;
