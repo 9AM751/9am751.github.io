@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"><meta><title>NIO和多路复用 - Pages</title><link rel="manifest" href="/manifest.json"><meta name="application-name" content="Pages"><meta name="msapplication-TileImage" content="/img/favicon.svg"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Pages"><meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="description" content="大概思路是这样，首先了解IO是什么？（输入输出），执行IO的过程（等待就绪之后数据从内核写入用户空间），那内核缓冲区，内核空间，用户空间是什么？（延伸出两个状态），而阻塞和非阻塞的问题就发生在（用户空间想要读取内核数据这期间）， I&amp;#x2F;O的知识分类：  内存IO  磁盘IO  网络IO   常见分类如上，关于文件I&amp;#x2F;O查了下属于低级的磁盘I&amp;#x2F;O所以就不另写了。IO顾名思"><meta property="og:type" content="blog"><meta property="og:title" content="NIO和多路复用"><meta property="og:url" content="http://example.com/2022/07/22/NIO%E5%92%8C%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8/"><meta property="og:site_name" content="Pages"><meta property="og:description" content="大概思路是这样，首先了解IO是什么？（输入输出），执行IO的过程（等待就绪之后数据从内核写入用户空间），那内核缓冲区，内核空间，用户空间是什么？（延伸出两个状态），而阻塞和非阻塞的问题就发生在（用户空间想要读取内核数据这期间）， I&amp;#x2F;O的知识分类：  内存IO  磁盘IO  网络IO   常见分类如上，关于文件I&amp;#x2F;O查了下属于低级的磁盘I&amp;#x2F;O所以就不另写了。IO顾名思"><meta property="og:locale" content="zh_CN"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221009068.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221016011.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221040116.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221040267.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221043765.png"><meta property="og:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221044081.png"><meta property="article:published_time" content="2022-07-22T01:41:15.000Z"><meta property="article:modified_time" content="2022-07-22T10:00:53.207Z"><meta property="article:author" content="Rylan"><meta property="twitter:card" content="summary"><meta property="twitter:image" content="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221009068.png"><script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"http://example.com/2022/07/22/NIO%E5%92%8C%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8/"},"headline":"NIO和多路复用","image":["https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221009068.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221016011.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221040116.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221040267.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221043765.png","https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221044081.png"],"datePublished":"2022-07-22T01:41:15.000Z","dateModified":"2022-07-22T10:00:53.207Z","author":{"@type":"Person","name":"Rylan"},"publisher":{"@type":"Organization","name":"Pages","logo":{"@type":"ImageObject","url":"http://example.com/img/logo.svg"}},"description":"大概思路是这样，首先了解IO是什么？（输入输出），执行IO的过程（等待就绪之后数据从内核写入用户空间），那内核缓冲区，内核空间，用户空间是什么？（延伸出两个状态），而阻塞和非阻塞的问题就发生在（用户空间想要读取内核数据这期间）， I&#x2F;O的知识分类：  内存IO  磁盘IO  网络IO   常见分类如上，关于文件I&#x2F;O查了下属于低级的磁盘I&#x2F;O所以就不另写了。IO顾名思"}</script><link rel="canonical" href="http://example.com/2022/07/22/NIO%E5%92%8C%E5%A4%9A%E8%B7%AF%E5%A4%8D%E7%94%A8/"><link rel="icon" href="/img/favicon.svg"><link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.2/css/all.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@9.12.0/styles/atom-one-light.css"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;600&amp;family=Source+Code+Pro"><link rel="stylesheet" href="/css/default.css"><style>body>.footer,body>.navbar,body>.section{opacity:0}</style><!--!--><!--!--><!--!--><!--!--><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cookieconsent@3.1.1/build/cookieconsent.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/css/lightgallery.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/css/justifiedGallery.min.css"><!--!--><!--!--><style>.pace{-webkit-pointer-events:none;pointer-events:none;-webkit-user-select:none;-moz-user-select:none;user-select:none}.pace-inactive{display:none}.pace .pace-progress{background:#3273dc;position:fixed;z-index:2000;top:0;right:100%;width:100%;height:2px}</style><script src="https://cdn.jsdelivr.net/npm/pace-js@1.2.4/pace.min.js"></script><!--!--><!--!--><!-- hexo injector head_end start --><script>
+  (function () {
+      function switchTab() {
+          if (!location.hash) {
+            return;
+          }
+          Array
+              .from(document.querySelectorAll('.tab-content'))
+              .forEach($tab => {
+                  $tab.classList.add('is-hidden');
+              });
+          Array
+              .from(document.querySelectorAll('.tabs li'))
+              .forEach($tab => {
+                  $tab.classList.remove('is-active');
+              });
+          const $activeTab = document.querySelector(location.hash);
+          if ($activeTab) {
+              $activeTab.classList.remove('is-hidden');
+          }
+          const $tabMenu = document.querySelector(`a[href="${location.hash}"]`);
+          if ($tabMenu) {
+              $tabMenu.parentElement.classList.add('is-active');
+          }
+      }
+      switchTab();
+      window.addEventListener('hashchange', switchTab, false);
+  })();
+  </script><!-- hexo injector head_end end --><meta name="generator" content="Hexo 6.2.0"></head><body class="is-2-column"><nav class="navbar navbar-main"><div class="container navbar-container"><div class="navbar-brand justify-content-center"><a class="navbar-item navbar-logo" href="/"><img src="/img/logo.svg" alt="Pages" height="28"></a></div><div class="navbar-menu"><div class="navbar-start"><a class="navbar-item" href="/archives">归档</a><a class="navbar-item" href="/overview">使用说明</a></div><div class="navbar-end"><a class="navbar-item is-hidden-tablet catalogue" title="目录" href="javascript:;"><i class="fas fa-list-ul"></i></a><a class="navbar-item search" title="搜索" href="javascript:;"><i class="fas fa-search"></i></a></div></div></div></nav><section class="section"><div class="container"><div class="columns"><div class="column order-2 column-main is-8-tablet is-8-desktop is-8-widescreen"><div class="card"><article class="card-content article" role="article"><div class="article-meta is-size-7 is-uppercase level is-mobile"><div class="level-left"><span class="level-item"><time dateTime="2022-07-22T01:41:15.000Z" title="2022/7/22 09:41:15">2022-07-22</time>发表</span></div></div><h1 class="title is-3 is-size-4-mobile">NIO和多路复用</h1><div class="content"><p>大概思路是这样，首先了解<strong>IO是什么？</strong>（输入输出），<strong>执行IO的过程</strong>（等待就绪之后数据从内核写入用户空间），那<strong>内核缓冲区，内核空间，用户空间是什么？</strong>（延伸出两个状态），而<strong>阻塞和非阻塞</strong>的问题就发生在（<strong>用户空间想要读取内核数据这期间</strong>），</p>
+<h2 id="I-x2F-O的知识"><a href="#I-x2F-O的知识" class="headerlink" title="I&#x2F;O的知识"></a>I&#x2F;O的知识</h2><p>分类：</p>
+<ul>
+<li><p>内存IO</p>
+</li>
+<li><p>磁盘IO</p>
+</li>
+<li><p>网络IO</p>
+</li>
+</ul>
+<p>常见分类如上，关于文件I&#x2F;O查了下属于低级的磁盘I&#x2F;O所以就不另写了。IO顾名思义输入输出，更加抽象的表示是读和写的操作。</p>
+<p>IO的过程分为两个阶段：</p>
+<ul>
+<li><p>等待就绪：<strong>等待数据就绪，一般是将数据加载到内核缓冲区中</strong>，因为用户进程无法直接调用系统级资源，所以程序能处理的数据都是要先加载到内核</p>
+</li>
+<li><p>数据读写：<strong>用户空间里的进程想要执行IO操作读取数据，数据从内核写入到用户空间</strong></p>
+</li>
+</ul>
+<p>要理解内核缓冲区和用户缓冲区的概念，首先要知道下<strong>内核态</strong>和<strong>用户态</strong></p>
+<h3 id="内核态和用户态"><a href="#内核态和用户态" class="headerlink" title="内核态和用户态"></a><strong>内核态和用户态</strong></h3><p>先来回顾下内核态和用户态：</p>
+<p>众所周知，CPU 上会运行两种程序，一种是操作系统的内核程序（也称为系统程序），一种是应用程序。前者完成系统任务，后者实现应用任务。两者之间有控制和被控制的关系，前者有权管理和分配资源，而后者只能向系统申请使用资源。</p>
+<p>显然，我们应该把在 CPU 上运行的这两类程序加以区分，这就是内核态和用户态出现的原因。</p>
+<ul>
+<li><strong>内核态</strong>（kernel mode）：当 CPU 处于内核态时，这是操作系统管理程序（也就是内核）运行时所处的状态。运行在内核态的程序可以访问计算机的任何资源，不受限制，为所欲为，例如协调 CPU 资源，分配内存资源，提供稳定的环境供应用程序运行等。</li>
+<li><strong>用户态</strong>（user mode）：应用程序基本都是运行在用户态的，或者说用户态就是提供应用程序运行的空间。运行在用户态的程序只能访问当前 CPU 上执行程序所在的地址空间，这样有效地防止了操作系统程序受到应用程序的侵害。</li>
+</ul>
+<img title="" src="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221009068.png" alt="" width="650">
+
+<p>操作系统（内核）先从磁盘上读取数据存到内核空间，再把数据从内核空间拷贝到用户空间。此后，用户应用程序才可以操作此数据。</p>
+<p>所以，在这个过程中有两次数据读取操作：</p>
+<ol>
+<li><p>第一步：从磁盘上读取</p>
+</li>
+<li><p>第二步：从内存中读取</p>
+</li>
+<li><p>众所周知，访问磁盘的速度要远远低于访问内存的速度，完全不是一个量级的，所以理论上 read 磁盘的速度要远远慢于 read 内存。</p>
+<p>那么整个文件读取过程的最大时间瓶颈就出现在了对磁盘的读取上。</p>
+<p>要解决这个问题，<strong>内核缓冲区</strong>（<code>Kernel Buffer Cache</code>）就应运而生了。</p>
+<p>本质上其实就是内核空间的一块内存区域</p>
+<p>从 Buffer Cache（缓冲区缓存）这个名字上能看出来，内核缓冲区（准确的说，应该是<strong>内核缓冲区缓存</strong>），其实有两个作用，缓冲(Buffer) + 缓存(Cache)</p>
+</li>
+</ol>
+<img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221016011.png" title="" alt="" width="1030">
+
+<p>如上图的buffer&#x2F;cache中buffer指“buffer cache”，关于cache是什么没了解过</p>
+<p>所以一个大概的流程是</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221040116.png"></p>
+<p>而要讨论的阻塞问题就是发生在（2）（3）过程</p>
+<h3 id="同步阻塞"><a href="#同步阻塞" class="headerlink" title="同步阻塞"></a>同步阻塞</h3><p>在读写数据过程中会发生阻塞现象。当用户线程发出I&#x2F;O请求之后，内核会去查看数据是否就绪，如果没有就绪就会等待数据就绪，而用户线程就会处于阻塞状态，用户线程交出CPU。当数据就绪之后，内核会将数据拷贝到用户线程，并返回结果给用户线程，用户线程才会解除block状态。</p>
+<p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221040267.png"></p>
+<h3 id="同步非阻塞"><a href="#同步非阻塞" class="headerlink" title="同步非阻塞"></a>同步非阻塞</h3><p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221043765.png"></p>
+<p>应用进程一直轮训调用recv()查看内核缓冲区的数据是否准备好，内核立即给予答复，如果回复结果通知数据还未准备好，则接着轮训进行询问。缺点：当进程有1000fds,代表用户进程轮询发生系统调用1000次kernel，来回的用户态和内核态的切换，成本几何上升。</p>
+<h3 id="I-x2F-O多路复用-IO-multiplexing"><a href="#I-x2F-O多路复用-IO-multiplexing" class="headerlink" title="I&#x2F;O多路复用- IO multiplexing"></a>I&#x2F;O多路复用- IO multiplexing</h3><p><img src="https://raw.githubusercontent.com/9AM751/picgo/main/img/blog202207221044081.png"></p>
+<p>单个线程就可以同时处理多个网络连接。内核负责轮询所有socket，当某个socket有数据到达了，就通知用户进程。多路复用在Linux内核代码迭代过程中依次支持了三种调用，即SELECT、POLL、EPOLL三种多路复用的网络I&#x2F;O模型。</p>
+</div><!--!--></article></div><div class="card"><div class="card-content"><h3 class="menu-label has-text-centered">喜欢这篇文章？打赏一下作者吧</h3><div class="buttons is-centered"><a class="button donate" href="/" target="_blank" rel="noopener" data-type="buymeacoffee"><span class="icon is-small"><i class="fas fa-coffee"></i></span><span>送我杯咖啡</span></a></div></div></div><nav class="post-navigation mt-4 level is-mobile"><div class="level-start"><a class="article-nav-prev level level-item link-muted" href="/2022/07/26/%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8BReact/"><i class="level-item fas fa-chevron-left"></i><span class="level-item">快速上手React</span></a></div><div class="level-end"><a class="article-nav-next level level-item link-muted" href="/2022/07/09/Oauth2-0%E7%A4%BE%E4%BA%A4%E5%8C%96%E7%99%BB%E5%BD%95/"><span class="level-item">Oauth2.0社交化登录</span><i class="level-item fas fa-chevron-right"></i></a></div></nav><!--!--></div><!--!--><div class="column column-right is-4-tablet is-4-desktop is-4-widescreen  order-3"><div class="card widget" id="toc" data-type="toc"><div class="card-content"><div class="menu"><h3 class="menu-label">目录</h3><ul class="menu-list"><li><a class="level is-mobile" href="#I-x2F-O的知识"><span class="level-left"><span class="level-item">1</span><span class="level-item">I/O的知识</span></span></a><ul class="menu-list"><li><a class="level is-mobile" href="#内核态和用户态"><span class="level-left"><span class="level-item">1.1</span><span class="level-item">内核态和用户态</span></span></a></li><li><a class="level is-mobile" href="#同步阻塞"><span class="level-left"><span class="level-item">1.2</span><span class="level-item">同步阻塞</span></span></a></li><li><a class="level is-mobile" href="#同步非阻塞"><span class="level-left"><span class="level-item">1.3</span><span class="level-item">同步非阻塞</span></span></a></li><li><a class="level is-mobile" href="#I-x2F-O多路复用-IO-multiplexing"><span class="level-left"><span class="level-item">1.4</span><span class="level-item">I/O多路复用- IO multiplexing</span></span></a></li></ul></li></ul></div></div><script src="/js/toc.js" defer></script></div><div class="card widget" data-type="profile"><div class="card-content"><nav class="level"><div class="level-item has-text-centered flex-shrink-1"><div><figure class="image is-128x128 mx-auto mb-2"><img class="avatar is-rounded" src="https://raw.githubusercontent.com/9AM751/picgo/main/img/img-1649202808110b89b9a095a058df3575257f897598dc3.jpg" alt="Rylan"></figure><p class="title is-size-4 is-block" style="line-height:inherit;">Rylan</p><p class="is-size-6 is-block">满满的正能量，早晨起来，面对太阳...</p><p class="is-size-6 is-flex justify-content-center"><i class="fas fa-map-marker-alt mr-1"></i><span>China</span></p></div></div></nav><nav class="level is-mobile"><div class="level-item has-text-centered is-marginless"><div><p class="heading">文章</p><a href="/archives"><p class="title">7</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">分类</p><a href="/categories"><p class="title">3</p></a></div></div><div class="level-item has-text-centered is-marginless"><div><p class="heading">标签</p><a href="/tags"><p class="title">1</p></a></div></div></nav><div class="level"><a class="level-item button is-primary is-rounded" href="https://juejin.cn/user/3624426912878622" target="_blank" rel="noopener">关注我</a></div></div></div><div class="card widget"><div class="card-content"><div class="notification is-danger">You need to set <code>client_id</code> and <code>slot_id</code> to show this AD unit. Please set it in <code>_config.yml</code>.</div></div></div><div class="card widget" data-type="subscribe-email"><div class="card-content"><div class="menu"><h3 class="menu-label">follow.it</h3><form action="" method="post" target="_blank"><div class="field has-addons"><div class="control has-icons-left is-expanded"><input class="input" name="email" type="email" placeholder="Email"><span class="icon is-small is-left"><i class="fas fa-envelope"></i></span></div><div class="control"><input class="button" type="submit" value="订阅"></div></div></form></div></div></div></div></div></div></section><footer class="footer"><div class="container"><div class="level"><div class="level-start"><a class="footer-logo is-block mb-2" href="/"><img src="/img/logo.svg" alt="Pages" height="28"></a><p class="is-size-7"><span>&copy; 2022 Rylan</span>  Powered by <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a> &amp; <a href="https://github.com/ppoffice/hexo-theme-icarus" target="_blank" rel="noopener">Icarus</a></p></div><div class="level-end"><div class="field has-addons"><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Creative Commons" href="https://creativecommons.org/"><i class="fab fa-creative-commons"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Attribution 4.0 International" href="https://creativecommons.org/licenses/by/4.0/"><i class="fab fa-creative-commons-by"></i></a></p><p class="control"><a class="button is-transparent is-large" target="_blank" rel="noopener" title="Download on GitHub" href="https://github.com/ppoffice/hexo-theme-icarus"><i class="fab fa-github"></i></a></p></div></div></div></div></footer><script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script><script src="https://cdn.jsdelivr.net/npm/moment@2.22.2/min/moment-with-locales.min.js"></script><script src="https://cdn.jsdelivr.net/npm/clipboard@2.0.4/dist/clipboard.min.js" defer></script><script>moment.locale("zh-CN");</script><script>var IcarusThemeSettings = {
+            article: {
+                highlight: {
+                    clipboard: true,
+                    fold: 'unfolded'
+                }
+            }
+        };</script><script src="/js/column.js"></script><script src="/js/animation.js"></script><a id="back-to-top" title="回到顶端" href="javascript:;"><i class="fas fa-chevron-up"></i></a><script src="/js/back_to_top.js" defer></script><!--!--><!--!--><!--!--><script src="https://cdn.jsdelivr.net/npm/cookieconsent@3.1.1/build/cookieconsent.min.js" defer></script><script>window.addEventListener("load", () => {
+      window.cookieconsent.initialise({
+        type: "info",
+        theme: "edgeless",
+        static: false,
+        position: "bottom-left",
+        content: {
+          message: "此网站使用Cookie来改善您的体验。",
+          dismiss: "知道了！",
+          allow: "允许使用Cookie",
+          deny: "拒绝",
+          link: "了解更多",
+          policy: "Cookie政策",
+          href: "https://www.cookiesandyou.com/",
+        },
+        palette: {
+          popup: {
+            background: "#edeff5",
+            text: "#838391"
+          },
+          button: {
+            background: "#4b81e8"
+          },
+        },
+      });
+    });</script><script src="https://cdn.jsdelivr.net/npm/lightgallery@1.10.0/dist/js/lightgallery.min.js" defer></script><script src="https://cdn.jsdelivr.net/npm/justifiedGallery@3.8.1/dist/js/jquery.justifiedGallery.min.js" defer></script><script>window.addEventListener("load", () => {
+            if (typeof $.fn.lightGallery === 'function') {
+                $('.article').lightGallery({ selector: '.gallery-item' });
+            }
+            if (typeof $.fn.justifiedGallery === 'function') {
+                if ($('.justified-gallery > p > .gallery-item').length) {
+                    $('.justified-gallery > p > .gallery-item').unwrap();
+                }
+                $('.justified-gallery').justifiedGallery();
+            }
+        });</script><!--!--><!--!--><!--!--><!--!--><!--!--><script src="/js/main.js" defer></script><div class="searchbox"><div class="searchbox-container"><div class="searchbox-header"><div class="searchbox-input-container"><input class="searchbox-input" type="text" placeholder="想要查找什么..."></div><a class="searchbox-close" href="javascript:;">×</a></div><div class="searchbox-body"></div></div></div><script src="/js/insight.js" defer></script><script>document.addEventListener('DOMContentLoaded', function () {
+            loadInsight({"contentUrl":"/content.json"}, {"hint":"想要查找什么...","untitled":"(无标题)","posts":"文章","pages":"页面","categories":"分类","tags":"标签"});
+        });</script></body></html>
